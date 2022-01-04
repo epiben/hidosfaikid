@@ -20,11 +20,12 @@ atc_map <- fread(read_file(snakemake@input$atc_map), select = c("ATC.code", "ATC
  	with(setNames(str_to_sentence(drug_name), atc))
 
 conn <- connect()
-print(this_study)
+
 shap_values <- sql_fetch("SELECT * FROM @schema.shap_values WHERE study_name = '@study_name' AND pred_type = 'crude';", conn,
 						 schema = snakemake@params$dbschema,
 						 study_name = this_study) %>% 
-	select(-dataset, -study_name, -pred_type)
+	select(-dataset, -study_name, -pred_type) %>% 
+	select_if(~ !all(is.na(.))) # keep complete columns
 
 feature_values <- sql_fetch(sprintf("SELECT * FROM %s.data_test", snakemake@params$dbschema), conn) %>% 
 	select(-person_id, -r, -time_at_risk, -starts_with("daily_rate_")) %>% 

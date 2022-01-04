@@ -13,7 +13,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, Callback
 from tensorflow.keras.layers import Activation, Lambda, ReLU
 from tensorflow.keras.models import Model, load_model
 
-from utils import pick_features, handle_imbalance, remove_old_results_from_db
+from utils import pick_features, handle_imbalance, remove_old_results_from_db, make_feature_subset
 
 class early_stopping_by_metric(Callback):
 	"""
@@ -32,7 +32,7 @@ class early_stopping_by_metric(Callback):
 DBNAME = snakemake.params["dbname"]
 DBUSER = snakemake.params["dbuser"]
 DBSCHEMA = snakemake.params["dbschema"]
-psql_url = f"postgresql://{DBUSER}@dbserver/{DBNAME}?options=-c%20search_path={DBSCHEMA}"
+psql_url = f"postgresql://{DBUSER}@trans-db-01/{DBNAME}?options=-c%20search_path={DBSCHEMA}"
 engine = create_engine(psql_url) 
 
 with engine.connect() as connection:
@@ -40,12 +40,13 @@ with engine.connect() as connection:
 	model_type = snakemake.wildcards["model_type"]
 	outcome_variable = snakemake.wildcards["outcome_variable"]
 	optuna_study_name = f"{outcome_type}__{model_type}__{outcome_variable}"
-	
+	feature_subset = make_feature_subset(outcome_type)
+
 	hp = pd.read_sql(f"SELECT hyperparameters FROM best_trials WHERE study_name = '{optuna_study_name}'", connection)
 	hp = json.loads(hp.hyperparameters[0])
-	
+
 	datasets = {x: pd.read_sql("data_" + x, connection) for x in ("dev", "test", "test_new")}
-	features = {k: pick_features(v).values for k,v in datasets.items()}
+	features = {k: pick_features(v, feature_subset).values for k,v in datasets.items()}
 	y = {k: v[outcome_variable].values for k,v in datasets.items()}
 	
 	features["dev"], y["dev"], class_weights = \
@@ -166,7 +167,7 @@ with engine.connect() as connection:
 	metrics.to_sql("evaluation_metrics", connection, if_exists="append", index=False)
 	
 	# Make SHAP explanations
-	features = {k: pick_features(v) for k,v in datasets.items()} # needed again without converting to np array
+	features = {k: pick_features(v, feature_subset) for k,v in datasets.items()} # needed again without converting to np array
 	try:
 		n_samples = min(snakemake.params["n_shap_background"], features["dev"].shape[0])
 		background_set = features["dev"].sample(n_samples, random_state=42)

@@ -4,7 +4,7 @@ this_study <- with(snakemake@wildcards, sprintf("%s__%s__%s", outcome_type, mode
 
 beautify_names <- function(x) {
 	str_split(x, pattern = "__") %>% 
-		lapply(str_replace_all, pattern = c("binary" = "Binary", "poisson" = "Poisson", "zip" = "ZIP",
+		lapply(str_replace_all, pattern = c("binary" = "Binary", "poisson" = "Poisson", "zip" = "ZIP", "refmodel" = "Ref. model",
 											"mlp" = "MLP", "geq" = ">=", "not_zero" = "> 0", "_" = " ")) %>% 
 		lapply(function(s) sprintf("%s %s \n(%s)", s[1], s[2], s[3])) %>% 
 		unlist()

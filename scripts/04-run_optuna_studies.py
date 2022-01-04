@@ -10,12 +10,12 @@ from time import strftime, localtime, time, mktime
 from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
 from sqlalchemy import create_engine
 
-from utils import train_model, StratifiedGroupKFold, status
+from utils import train_model, StratifiedGroupKFold, status, make_feature_subset
 
 # ===
 
 def optuna_status(trial_number, cv_fold, log_file=snakemake.log[0]):
-	
+
 	with open(log_file, 'r') as f: 
 		log = [x.strip().split(' ') for x in f.read().splitlines()]
 	    
@@ -31,7 +31,7 @@ def optuna_status(trial_number, cv_fold, log_file=snakemake.log[0]):
 	print(log)
 	with open(log_file, 'w') as f: f.write(log)
 
-def optuna_objective(trial, snakemake=None, study_name=None, datasets=dict(), db_conn=None):
+def optuna_objective(trial, snakemake=None, study_name=None, datasets=dict(), db_conn=None, feature_subset=None):
 	
 	# Hyperparameters
 	hp = dict()
@@ -39,18 +39,22 @@ def optuna_objective(trial, snakemake=None, study_name=None, datasets=dict(), db
 	hp["learning_rate"] = trial.suggest_loguniform("learning_rate", 1e-6, 0.1)
 	hp["batch_size"] = trial.suggest_categorical("batch_size", [32, 64, 128, 256, 512])
 	hp["l2_penalty"] = trial.suggest_loguniform("l2_penalty", 1e-6, 1e-2)
-	hp["class_handling"] = trial.suggest_categorical("class_handling", ["smote", "random_over", "class_weighting", "near_miss", "random_under", "none"])
+	hp["class_handling"] = trial.suggest_categorical(
+		"class_handling", 
+		["smote", "random_over", "class_weighting", "near_miss", "random_under", "none"]
+	)
 	
-	## Only applicable to MLP models
+	# Only applicable to MLP models
 	if snakemake.wildcards["model_type"] != "linear":
 		hp["activation"] = trial.suggest_categorical("activation", ["sigmoid", "tanh"])
 		hp["n_hidden_layers"] = trial.suggest_int("n_hidden_layers", 1, 4)
 		hp["n_hidden_nodes"] = trial.suggest_categorical("n_hidden_nodes", [8, 16, 32, 64, 128, 256])
-		hp["network_shape"] = trial.suggest_categorical("network_shape", ["rectangular"]) #trial.suggest_categorical("network_shape", ["rectangular", "triangular"])
-		
+		hp["network_shape"] = trial.suggest_categorical("network_shape", ["rectangular"]) 
+			#trial.suggest_categorical("network_shape", ["rectangular", "triangular"])
+	
 	# Set up cross-validation
 	datasets["dev"] = datasets["dev"].sample(frac=1, axis=1, random_state=42).reset_index(drop=True)
-		# shuffle here because GroupKFold doesn't allow for that
+		# shuffle here because StratifiedGroupKFold doesn't allow for that
 	y_dev = datasets["dev"][outcome_variable].values
 	optim_metric = list() # will return the mean of this to Optuna (different for Poisson and binary regression)
 	cv_fold = 0
@@ -96,7 +100,8 @@ def optuna_objective(trial, snakemake=None, study_name=None, datasets=dict(), db
 			callbacks=[checkpoint, early_stopping],
 			study_name=study_name,
 			trial_number=trial.number,
-			db_conn=db_conn
+			db_conn=db_conn,
+			feature_subset=feature_subset
 		)
 		optim_metric.append(np.min(hist.history["val_loss"])) 
 			
@@ -107,7 +112,7 @@ DBNAME = snakemake.params["dbname"]
 DBUSER = snakemake.params["dbuser"]
 DBSCHEMA = snakemake.params["dbschema"]
 
-psql_url = f"postgresql://{DBUSER}@dbserver/{DBNAME}?options=-c%20search_path={DBSCHEMA}"
+psql_url = f"postgresql://{DBUSER}@trans-db-01/{DBNAME}?options=-c%20search_path={DBSCHEMA}"
 engine = create_engine(psql_url)
 
 if __name__ == "__main__":
@@ -116,6 +121,7 @@ if __name__ == "__main__":
 	model_type = snakemake.wildcards["model_type"]
 	outcome_variable = snakemake.wildcards["outcome_variable"]
 	study_name = f"{outcome_type}__{model_type}__{outcome_variable}"
+	feature_subset = make_feature_subset(outcome_type)
 	
 	storage = optuna.storages.RDBStorage(url=psql_url, engine_kwargs={"pool_size": 0})
 	
@@ -141,7 +147,7 @@ if __name__ == "__main__":
 		with engine.connect() as connection:
 			datasets = {x: pd.read_sql("data_" + x, connection) for x in ("dev", "test", "test_new")}
 			study.optimize(
-				lambda trial: optuna_objective(trial, snakemake, study_name, datasets, connection), 
+				lambda trial: optuna_objective(trial, snakemake, study_name, datasets, connection, feature_subset), 
 				n_trials=n_trials, 
 				n_jobs=1
 			)
@@ -157,8 +163,9 @@ if __name__ == "__main__":
 		executor.map(optimize, [n_trials] * n_jobs)
 
 	is_pruned = lambda t: t.state == optuna.trial.TrialState.PRUNED
-	is_complete = lambda t: t.state == optuna.trial.TrialState.COMPLETE
 	pruned_trials = [t for t in study.trials if is_pruned(t)]
+
+	is_complete = lambda t: t.state == optuna.trial.TrialState.COMPLETE
 	complete_trials = [t for t in study.trials if is_complete(t)]
 	
 	status("Study statistics: ", snakemake.log[0])
@@ -183,5 +190,3 @@ if __name__ == "__main__":
 		pickle.dump(study, f, protocol=pickle.HIGHEST_PROTOCOL)
 	
 	status("Done", snakemake.log[0])	
-	
-		

@@ -8,7 +8,9 @@ features <- snakemake@params$features %>%
 	paste(collapse = ", ") 
 
 q <- "SELECT admission_id, study_name, @features FROM @schema.shap_values 
-	  WHERE pred_type = 'crude' AND dataset = 'test';"
+	  WHERE pred_type = 'crude' 
+	      AND dataset = 'test'
+		  AND NOT study_name ~ 'refmodel_';"
 
 conn <- connect()
 

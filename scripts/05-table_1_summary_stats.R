@@ -54,6 +54,7 @@ for (i in seq_along(table1$variate)) {
 	}
 }
 
+# table1 is actually too comprehensive and so will be in the supplement whereas the actual table 1 will be a subset
 in_table1_regex <- "^n$|^n_|^daily_rate|time_at_risk|^inapp_dose|^admitted|_N02|_J01|_C03|_B01|_A02|n18_diag_any|chapter_(4|9|14|18|19)|unique_person|sex_female"
 
 table1 <- table1 %>% 

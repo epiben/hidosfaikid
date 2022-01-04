@@ -1,17 +1,20 @@
 ---
-title: "Development of a prediction model to identify patients at high risk of inappropriate drug dosing in periods with renal dysfunction"
-subtitle: "Supplement"
-author: Benjamin Skov Kaas-Hansen
-date: "19 Feburary 2021"
-output: 
-  html_document: 
-    # code_folding: hide
-    self-contained: true
+title: Identifying patients at high risk of inappropriate drug dosing in periods with renal dysfunction
+author: "Benjamin Skov Kaas-Hansen"
+date: "2 January 2022"
+output:
+  pdf_document:
     highlight: haddock
+    toc: yes
+    toc_depth: 6
+  html_document:
+    highlight: haddock
+    self-contained: yes
     theme: flatly
     toc: yes
     toc_depth: 6
-editor_options: 
+subtitle: Supplement
+editor_options:
   chunk_output_type: inline
 ---
 
@@ -24,21 +27,9 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align 
 ```
 
 ```{r init, include=FALSE}
-for (p in c("tidyr", "ggplot2", "DT", "data.table", "dplyr", "stringr", "readr", "purrr", "forcats", 
-			"RPostgreSQL", "umap", "rjson", "patchwork"))
+for (p in c("tidyr", "ggplot2", "data.table", "dplyr", "stringr", "readr", "purrr", "forcats", 
+			"RPostgreSQL", "rjson", "patchwork"))
 	library(p, character.only = TRUE)
-
-dt <- function(d, ...) {
-	datatable(d, 
-			  extensions = "FixedColumns",
-			  filter = list(position = "top", clear = TRUE), 
-			  rownames = FALSE, 
-			  options = c(list(pageLength = 12, autoWidth = TRUE, scrollX = TRUE, 
-			  				 searching = TRUE, lengthChange = FALSE, 
-			  				 search = list(regex = TRUE),
-			  				 columnDefs = list(list(width = "120px", targets = "_all")),
-			  				 fixedColumns = list(leftColumns = 1)), ...))
-}
 
 icd10_classification <- fread(read_file("../data/00-raw-symlinks/icd10_classification.tsv")) %>% 
 	with(setNames(V2, V1))
@@ -46,7 +37,7 @@ icd10_classification <- fread(read_file("../data/00-raw-symlinks/icd10_classific
 atc_map <- fread(read_file("../data/00-raw-symlinks/atc_classification.tsv")) %>% 
 	with(setNames(str_to_sentence(ATC.level.name), ATC.code))
 
-supp_theme <- theme_minimal()+
+supp_theme <- theme_minimal() +
 	theme(strip.background = element_rect(fill = "grey95", size = 0))
 
 icd10_chapters <- c("1" = "Infections",
@@ -72,36 +63,42 @@ icd10_chapters <- c("1" = "Infections",
 					"21" = "Other determinants",
 					"22" = "Special codes")
 
-study_names <- expand.grid(c("mlp", "linear"), c("not_zero", paste0("geq_", c(1:3, 5)))) %>%
-	# slice(1:2) %>% # remove later
-	apply(1, function(x) sprintf("binary__%s__daily_rate_%s", x[1], x[2])) %>% 
-	setNames(str_replace_all(., c("binary_" = "", 
-								  "_mlp" = "MLP", 
-								  "_linear" = "Linear",
-								  "geq_" = ">= ",
-								  "not_zero" ="> 0",
-								  "__" = ", ", 
-								  "_" = " ")), .)
+replacements <- c("binary_" = "", "refmodel_" = "Ref. model, ", "_mlp" = "MLP", 
+				  "_linear" = "Linear", "geq_" = ">= ", "not_zero" ="> 0", 
+				  "__" = ", ", "_" = " ")
 
-conn <- dbConnect(dbDriver("PostgreSQL"), host = "dbserver", port = 5432, 
-			  dbname = "bth", user = "benkaa")
+study_names <- expand.grid("binary", c("mlp", "linear"), c("not_zero", paste0("geq_", c(1:3, 5)))) %>%
+	bind_rows(expand.grid("refmodel", c("mlp", "linear"), c("not_zero", "geq_1"))) %>% 
+	# slice(1:2) %>% # remove later
+	apply(1, function(x) sprintf("%s__%s__daily_rate_%s", x[1], x[2], x[3])) %>% 
+	setNames(str_replace_all(., replacements), .)
+
+conn <- dbConnect(dbDriver("PostgreSQL"), host = "trans-db-01", port = 5432, 
+			  dbname = "benkaa", user = "benkaa")
 ```
 
 ----
 
-#### Supplementary tables
+# Supplementary tables
 
-##### Table S1: Maximum doses in periods when eGFR is as indicated. ATC codes in brackets.
-```{r table_S1}
-read_tsv("09-manually_entered/09-table_s1__egfr_thresholds__max_daily_doses.tsv", trim_ws = FALSE) %>% 
-	datatable(rownames = FALSE, 
-			  options = c(list(pageLength = 20, autoWidth = FALSE, scrollX = FALSE, 
-			  				 searching = TRUE, lengthChange = FALSE, 
-			  				 dom = "t"))) %>% 
-	formatStyle(1, whiteSpace = "pre") # retain white-space indenting
+```{r, echo=FALSE}
+default_width <- options()$width
+options(width = 999)
 ```
 
-##### Table S2 (extended version of table 1): Univariate summary statistics of the three data sets. Values are median (inter-quartile range) and N (%). 
+
+## Table S1: Maximum doses in periods when eGFR is as indicated. ATC codes in brackets.
+
+```{r table_S1}
+read_tsv("09-manually_entered/09-table_s1__egfr_thresholds__max_daily_doses.tsv", 
+		 trim_ws = FALSE) %>% 
+	mutate_at("eGFR thredshold", str_replace, "≤", "<=") %>%  # to make TeX work
+	as.data.frame()
+```
+
+## Table S2 (extended version of table 1): Univariate summary statistics of the three data sets. Values are median (inter-quartile range) and N (%). 
+
+\footnotesize
 ```{r table_1}
 redact_low_counts <- function(x) {
 	ints <- suppressWarnings(parse_integer(str_split(x, " ", simplify = TRUE)[, 1]))
@@ -111,19 +108,18 @@ redact_low_counts <- function(x) {
 
 read_tsv("05-table_1_summary_stats.tsv", trim_ws = FALSE) %>% 
 	mutate_at(vars(-"variate"), redact_low_counts) %>% 
-	datatable(filter = list(position = "top", clear = TRUE), 
-		  rownames = FALSE, 
-		  options = c(list(pageLength = 20, autoWidth = FALSE, scrollX = FALSE, 
-		  				 lengthMenu = list(c(10, 20, 40, 60, -1), c(10, 20, 40, 60, "All")),
-		  				 searching = TRUE, lengthChange = TRUE, 
-		  				 search = list(regex = TRUE)))) %>% 
-	formatStyle(1, whiteSpace = "pre") %>% # retain 3-whitespace indenting
-	formatStyle(2:4, textAlign = "center")
+	as.data.frame()
+```
+\normalsize
+
+```{r, echo=FALSE}
+options(width = default_width)
 ```
 
-#### Supplementary figures
 
-##### Figure S1: Mapping of admission hour, two alternatives.
+# Supplementary figures
+
+## Figure S1: Mapping of admission hour, two alternatives.
 Top: Mapping of admission hour (x axis) to unit circle (blue) and distance from midday (red). Bottom: The unit-circle mapping loses the interval nature of the admission hour on the original scale, whereas the distance-to-midday maintains this quality. 
 
 ```{r figure_mapping_admission_hour, fig.height = 5, fig.width = 10}
@@ -162,75 +158,45 @@ ggplot(adm_hour_plot_df, aes(x = t, y = value, colour = param)) +
 			   scales = "free_y", ncol = 1)
 ```
 
-##### Figure S2: The so-called rulegraph of the our Snakemake pipeline illustrating the end-to-end workflow with dependencies between processing, training and visualisation steps.
+## Figure S2: The so-called rulegraph of the our Snakemake pipeline illustrating the end-to-end workflow with dependencies between processing, training and visualisation steps.
 
 ```{r snakemake_pipeline, out.width = "100%"}
 knitr::include_graphics("05-snakemake_rulegraph.png")
-```
-
-```{r umap, fig.height = 7, fig.width = 10, eval=FALSE, include=FALSE}
-##### Figure S2: Visualisation of 2-dimensional Uniform Manifold Approximation and Projection (UMAP) analysis 5,000 samples samples from the full data set. Points are coloured according to each of the five outcome variables modelled. The figure illustrates the lack of clear boundaries between the labels (outcome variables' values), suggesting the prediction be difficult. 
-
-set.seed(42)
-umap_data <- dbGetQuery(conn, "SELECT * FROM hidosfaikid.data_dev") %>% 
-	select(-admission_id, -person_id, -r, -time_at_risk) %>% 
-	sample_n(5000)
-
-umap_object <- select(umap_data, -starts_with("daily_rate_")) %>% 
-	as.matrix() %>% 
-	umap(random_state = 42)
-
-bind_cols(select(umap_data, starts_with("daily_rate_")), data.frame(umap_object$layout)) %>% 
-	pivot_longer(-c("X1", "X2"), names_to = "outcome_variable", values_to = "outcome_value") %>% 
-	mutate_at("outcome_variable", factor,
-			  levels = paste0("daily_rate_", c("not_zero", paste0("geq_", c(1:3, 5)))),
-			  labels = sprintf("Daily rate %s", c(">0", paste0(">=", c(1:3, 5))))) %>% 
-	mutate_at("outcome_value", factor, levels = 0:1, labels = c("No", "Yes")) %>% 
-	ggplot(aes(X1, X2, colour = outcome_value)) +
-		geom_jitter(size = 0.5, alpha = 0.7) +
-		labs(x = "1st UMAP dimension", y = "2nd UMAP dimension", colour = "Outcome?") +
-		scale_colour_brewer(palette = "Set1") +
-		facet_wrap(~ outcome_variable, ncol = 3) +
-		coord_equal() +
-		theme_minimal() +
-		theme(legend.position = "bottom",
-			  panel.grid = element_blank(),
-			  axis.text = element_blank())
 ```
 
 ```{r}
 fig_counter <- 2 # the number of figures so far, to auto-number model-specific figures below
 ```
 
-#### Optuna hyperparameter optimisation
+# Optuna hyperparameter optimisation
 Sampled hyperparameter configurations. Point colours represent the loss value: blue = low (preferable), red = high, grey = above the third quartile. Dashed lines indicate the best configuration.
 
-```{r optuna_learning, fig.height = 8, fig.width = 10, results = "asis", echo = FALSE}
+```{r optuna_learning, fig.height = 7, fig.width = 10, results = "asis", echo = FALSE}
 for (sn in names(study_names)) {
 	fig_counter <- fig_counter + 1
-	cat(sprintf("\n##### Figure S%s: %s.\n", fig_counter, study_names[sn]))
+	cat(sprintf("\n## Figure S%s: %s.\n", fig_counter, study_names[sn]))
 	print(read_rds(sprintf("05-optuna_learning/%s.ggplot", sn)))
 	cat("\n")
 }
 ```
 
-#### ROC curves
+# ROC curves
 Receiver-operating characteristic (ROC) curves in the development and test sets.
-```{r roc_curves, fig.height = 4, fig.width = 10, results = "asis", echo = FALSE}
+```{r roc_curves, fig.height = 3, fig.width = 10, results = "asis", echo = FALSE}
 for (sn in names(study_names)) {
 	fig_counter <- fig_counter + 1
-	cat(sprintf("\n##### Figure S%s: %s.\n", fig_counter, study_names[sn]))
+	cat(sprintf("\n## Figure S%s: %s.\n", fig_counter, study_names[sn]))
 	print(read_rds(sprintf("05-performance/roc_curves__%s.ggplot", sn)))
 	cat("\n")
 }
 ```
 
-#### Calibration plots
+# Calibration plots
 Calibration curves in the development and test sets.
-```{r calibration_curves, fig.height = 4, fig.width = 10, results = "asis", echo = FALSE}
+```{r calibration_curves, fig.height = 3, fig.width = 10, results = "asis", echo = FALSE}
 for (sn in names(study_names)) {
 	fig_counter <- fig_counter + 1
-	cat(sprintf("\n##### Figure S%s: %s.\n", fig_counter, study_names[sn]))
+	cat(sprintf("\n## Figure S%s: %s.\n", fig_counter, study_names[sn]))
 	p <- read_rds(sprintf("05-performance/calibration_plots__%s.ggplot", sn)) +
 		scale_x_continuous(labels = scales::percent) +
 		scale_y_continuous(labels = scales::percent) 
@@ -239,24 +205,24 @@ for (sn in names(study_names)) {
 }
 ```
 
-#### Decision curves
+# Decision curves
 Decision curves based on the test set. The curves show the clinical utility (in the unit of standardised net benefit) of intervening in all patients (magenta), no patients (dark grey, follows the x axis) and patients identified by the model (blue). 
-```{r decision_curves, fig.height = 4, fig.width = 10, results = "asis", echo = FALSE, warning = FALSE}
+```{r decision_curves, fig.height = 3, fig.width = 10, results = "asis", echo = FALSE, warning = FALSE}
 for (sn in names(study_names)) {
 	fig_counter <- fig_counter + 1
-	cat(sprintf("\n##### Figure S%s: %s.\n", fig_counter, study_names[sn]))
+	cat(sprintf("\n## Figure S%s: %s.\n", fig_counter, study_names[sn]))
 	print(read_rds(sprintf("05-decision_curves/%s.ggplot", sn)))
 	cat("\n")
 }
 ```
 
-#### SHAP plots
+# SHAP plots
 The individual shap plots (figures S44-53) below all visualise the the distributions as density bands of shap values by feature. Blue represents low feature values (0 for binary features) and red high feature values (1 for binary features). Continuous features were binned into deciles.
 
-##### Figure S43: Summary plot of shap values across studies
-Feature values were binned into at most 5 bins, and each bins is represented by one point: the x axis is the mean shap value for each bin, the colour illustrates the spectrum of feature values (blue = low, red = high). Points are connected by lines to aid reading, solid and dashes lines represent MLP and linear models.
-
 ```{r summary_shap, fig.height = 35, fig.width = 10, eval=FALSE}
+## Figure S43: Summary plot of shap values across studies
+# Feature values were binned into at most 5 bins, and each bins is represented by one point: the x axis is the mean shap value for each bin, the colour illustrates the spectrum of feature values (blue = low, red = high). Points are connected by lines to aid reading, solid and dashes lines represent MLP and linear models.
+
 fig_counter <- fig_counter + 1
 
 reverse_string <- function(x) {
@@ -328,7 +294,7 @@ ggplot(shap_df, aes(y = shap_value, x = outcome, colour = colour_var, group = pa
 band_height <- 0.8
 for (sn in names(study_names)) {
 	fig_counter <- fig_counter + 1
-	cat(sprintf("\n##### Figure S%s: %s\n", fig_counter, study_names[sn]))
+	cat(sprintf("\n## Figure S%s: %s\n", fig_counter, study_names[sn]))
 	print(read_rds(sprintf("05-shap/%s.ggplot", sn)))
 	cat("\n")
 }

@@ -57,10 +57,17 @@ def give_correct_dtype(v):
 		return(int(v))
 	return(v)
 	
-def pick_features(d):
+def pick_features(d, subset=None):
 	"""
 	Drop columns from input Pandas data frame that should not be used as features, as return as Numpy array.
+
+	subset: list of specific features to keep, optional
 	"""
+
+	if subset is not None:
+		return d.drop(d.columns.difference(subset), axis=1)
+
+	# If no subset, drop columns that are known to not be features
 	cols_to_drop = ["admission_id", "person_id", "r", "time_at_risk", "daily_rate_not_zero"] + \
 		[f"daily_rate_geq_{x}" for x in (1, 2, 3, 5)]
 	return d.drop(cols_to_drop, axis=1)
@@ -87,11 +94,28 @@ def handle_imbalance(features, y, mechanism):
 
 def remove_old_results_from_db(table_name, col_name, study_name, conn):
 	try: # the table might not exist yet
-		conn.execute(f"BEGIN; DELETE FROM {table_name} WHERE {col_name} = '{study_name}'; COMMIT;")
+		conn.execute(f"DELETE FROM {table_name} WHERE {col_name} = '{study_name}';")
 		print(f"Old results removed from table {table_name}.")
 	except:
 		print(f"Table {table_name} doesn't exist; nothing done dbserver-side.")
 		pass
+
+def make_feature_subset(model):
+	subsets = {
+		"refmodel": [
+			"atc_level2_A10", # antidiabetics
+			"atc_level2_N02", # analgesics
+			"age_at_admission",
+			"n18_diag_N181", # CKD stage 1
+			"n18_diag_N182", # CKD stage 2
+			"n18_diag_N183", # CKD stage 3
+			"n18_diag_N184", # CKD stage 4
+			"n18_diag_N185", # CKD stage 5
+			"n18_diag_N189", # CKD unspecified
+		]
+	}
+
+	return subsets.get(model) # will return None if undefined, as desired
 	
 def train_model(datasets=None, 
 				hp=None, # hyperparameter dict
@@ -104,7 +128,8 @@ def train_model(datasets=None,
 				callbacks=None,
 				study_name=None,
 				trial_number=None,
-				db_conn=None):
+				db_conn=None,
+				feature_subset=None):
 	"""
 	
 	"""
@@ -113,7 +138,7 @@ def train_model(datasets=None,
 	datasets = copy.deepcopy(datasets) # don't destroy original dict
 	datasets.pop("dev", None)
 	
-	features = {k: pick_features(v).values for k,v in datasets.items()}
+	features = {k: pick_features(v, feature_subset).values for k,v in datasets.items()}
 	y = {k: v[outcome_variable].values for k,v in datasets.items()}
 
 	# Model architecture
@@ -172,9 +197,10 @@ def train_model(datasets=None,
 	model.compile(optimizer=getattr(optimizers, hp["optimiser_name"])(learning_rate=hp["learning_rate"]), 
 				  loss="binary_crossentropy",
 				  metrics=["accuracy", AUC(curve="ROC", name="auroc"), AUC(curve="PR", name="auprc")])
-	model.save_weights(weights_fpath) # ensure we have some best weights (initial ones will always be non-NaN)
+	model.save_weights(weights_fpath) 
+		# ensure we have some best weights (initial ones will always be non-NaN)
 	
-	model.summary() # FIX: consider save model graph as pdf at this point
+	model.summary() # TODO: consider save model graph as pdf at this point
 	hist = model.fit(
 		x=features["train"], y=y["train"], 
 		verbose=False,
@@ -186,7 +212,7 @@ def train_model(datasets=None,
 	)
 	model.load_weights(weights_fpath)
 	
-	# Compute losses and metrics and save in database
+	# Compute losses and metrics, and save in database
 	try:
 		eval_val = json.dumps(model.evaluate(features["val"], y["val"], verbose=False, return_dict=True))
 	except:
@@ -213,7 +239,7 @@ def train_model(datasets=None,
 	tries = 1
 	while tries <= 5:
 		try:
-			# This happens when two parallel processes to create the table concurrently
+			# This fails when two parallel processes to create the table concurrently
 			training_summary.to_sql("training_summaries", db_conn, if_exists="append", index=False)
 		except:
 			if tries < 5:

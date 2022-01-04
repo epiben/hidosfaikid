@@ -1,6 +1,7 @@
 # HOUSEKEEPING AND UTILITY FUNCTIONS USED IN MULTIPLE PLACES
 
-try(sink(snakemake@log[[1]], split = TRUE, append = TRUE)) # puts out in log (NB! message() don't go in the log this way)
+try(sink(snakemake@log[[1]], split = TRUE, append = TRUE), silent = TRUE) 
+try(sink(snakemake@log[[1]], split = TRUE, append = TRUE, type = "message"), silent = TRUE) 
 
 if (!exists("snakemake")) stop("Script must be called via snakemake.", call. = FALSE)
 
@@ -45,7 +46,7 @@ descale <- function(x) { # output from base::scale
 
 # DATABASE FUNCTIONS
 connect <- function() {
-	dbConnect(dbDriver("PostgreSQL"), host = "dbserver", port = 5432, 
+	dbConnect(dbDriver("PostgreSQL"), host = "trans-db-01", port = 5432, 
 			  dbname = snakemake@params$dbname, user = snakemake@params$dbuser)
 }
 
