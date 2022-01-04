@@ -16,3 +16,31 @@ Prediction study. Index set at admission time + 25 hours (see paper for justific
 - National Patient Register
 - In-hospital medication data
 - In-hospital biochemistry (estimated glomerular filtration rate)
+
+### Software used
+The pipeline uses are variety of Python and R libraries. Especially some of the Python modules are a bit dated and so the code might not run with recent versions.
+
+#### R (v3.6.1) packages
+- data.table v1.14.2
+- lubridate v1.8.0
+- patchwork v1.0.0
+- plyr v1.8.6
+- purrr v0.3.4
+- rmda v1.6
+- ROCR v1.0-11
+- RPostgreSQL v0.6-2
+- tableone v0.11.1
+- tidyr v1.1.4
+- tidyverse v1.3.0
+
+#### Python (v3.8.8) modules
+- json v2.0.9
+- numpy v1.18.5
+- optuna v2.4.0
+- pandas v1.3.5
+- scipy v1.7.3
+- shap 0.40.0
+- sklearn v1.0.1
+- snakemake v6.0.4
+- sqlalchemy v1.4.28
+- tensorflow v2.3.1
