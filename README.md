@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/341922108.svg)](https://zenodo.org/badge/latestdoi/341922108)
 
-**Repo contributors**: [Benjamin Skov Kaas-Hansen](http://github.com/epiben) [code author], [Cristina Rodriguez Leal](http://github.com/crlero) [code review], [Davide Placido](http://github.com/daplaci) [code review], Hans-Christian Thorsen-Meyer [code review]
+**Repo contributors**: [Benjamin Skov Kaas-Hansen](http://github.com/epiben) [code author], [Cristina Rodriguez Leal](http://github.com/crlero) [code review], [Davide Placido](http://github.com/daplaci) [code review], [Hans-Christian Thorsen-Meyer](https://github.com/hcthorsen) [code review]
 
 The repo holds the public version of our full analytic pipeline of the paper. Symlinks and other internal files have been removed as they are non-essential for reading the code in the repo, and because they would not port anyway.
 
