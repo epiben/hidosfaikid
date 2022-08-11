@@ -8,7 +8,8 @@ The repo holds the public version of our full analytic pipeline of the paper. Sy
 
 ### Publications
 
-- [Kaas-Hansen BS et al. *Using Machine Learning to Identify Patients at High Risk of Inappropriate Drug Dosing in Periods with Renal Dysfunction*. Clinical Epidemiology. 2022;14:213-223](https://doi.org/10.2147/CLEP.S344435)
+- [Kaas-Hansen BS et al. *Using Machine Learning to Identify Patients at High Risk of Inappropriate Drug Dosing in Periods with Renal Dysfunction*. Clinical Epidemiology. 2022;14:213-223. doi:10.2147/CLEP.S344435](https://doi.org/10.2147/CLEP.S344435)
+- [Kaas-Hansen et al. *Machine Learning to Identify Patients at Risk of Inappropriate Dosing for Renal Risk Medications: A Critical Comment on Kaas-Hansen et al [Response to Letter]*. Clinical Epidemiology. 2022;14:765-766. doi:10.2147/CLEP.S375668](https://doi.org/10.2147/CLEP.S375668)
 
 ### Scope of study
 Develop a prediction model for identifying patients at high risk of receiving inappropriate doses of select renal risk drugs.
